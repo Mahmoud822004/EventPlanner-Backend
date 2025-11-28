@@ -13,13 +13,13 @@ import (
 func main() {
 	database.Connect()
 
-	database.DB.AutoMigrate(&models.User{})
+	database.DB.AutoMigrate(&models.User{}, &models.Event{}, &models.Invitation{})
 
 		r := gin.Default()
 
 		r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
-		AllowMethods:     []string{"POST", "GET", "OPTIONS"},
+		AllowMethods:     []string{"POST", "GET", "OPTIONS", "PUT", "DELETE"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -31,6 +31,7 @@ func main() {
 
 
 	routes.AuthRoutes(r)
+	routes.RegisterRoutes(r)
 
-	r.Run(":8081") 
+	r.Run(":8081") // Backend runs at localhost:8080
 }

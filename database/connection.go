@@ -5,6 +5,7 @@ import (
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"eventplanner/models"
 )
 
 var DB *gorm.DB
@@ -17,4 +18,8 @@ func Connect() {
 		panic(" Failed to connect to database!")
 	}
 	fmt.Println("Database connected successfully!")
+
+	DB.AutoMigrate(&models.User{})
+	DB.AutoMigrate(&models.Event{})	
+	DB.AutoMigrate(&models.Invitation{})
 }
