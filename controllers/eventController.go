@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+
 // 🟢 Create new event (organizer only)
 func CreateEvent(c *gin.Context) {
 	var event models.Event
@@ -22,17 +23,18 @@ func CreateEvent(c *gin.Context) {
 		return
 	}
 
-	// Save event to DB
+	// Save event
 	if err := database.DB.Create(&event).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Automatically mark creator as "organizer" in Invitations
+	// Add organizer to invitations
 	organizerInvite := models.Invitation{
 		EventID: event.ID,
 		UserID:  event.OrganizerID,
 		Role:    "organizer",
+		Status:  "going", // organizer is automatically going
 	}
 	database.DB.Create(&organizerInvite)
 
@@ -42,7 +44,9 @@ func CreateEvent(c *gin.Context) {
 	})
 }
 
-// 🟢 Get all events organized by a specific user
+
+
+// 🟢 Get all events organized by the user
 func GetOrganizedEvents(c *gin.Context) {
 	userID := c.Param("userId")
 
@@ -55,44 +59,145 @@ func GetOrganizedEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"organized_events": events})
 }
 
-// 🟢 Get all events where user is invited (attendee)
+
+
+// 🟢 Get all events where user is invited
 func GetInvitedEvents(c *gin.Context) {
 	userID := c.Param("userId")
 
-	var invitations []models.Invitation
-	if err := database.DB.Where("user_id = ?", userID).Find(&invitations).Error; err != nil {
+	var invites []models.Invitation
+	if err := database.DB.Where("user_id = ?", userID).Find(&invites).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	var eventIDs []uint
-	for _, inv := range invitations {
+	for _, inv := range invites {
 		eventIDs = append(eventIDs, inv.EventID)
 	}
 
 	var events []models.Event
 	if len(eventIDs) > 0 {
-		if err := database.DB.Where("id IN ?", eventIDs).Find(&events).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+		database.DB.Where("id IN ?", eventIDs).Find(&events)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"invited_events": events})
 }
 
-// 🟢 Delete event (organizer only)
-func DeleteEvent(c *gin.Context) {
+
+
+	// 🟢 Delete event
+	func DeleteEvent(c *gin.Context) {
 	id := c.Param("id")
 
-	// Delete related invitations first
+	// Delete invitations first
 	database.DB.Where("event_id = ?", id).Delete(&models.Invitation{})
 
-	// Delete the event itself
+	// Delete event
 	if err := database.DB.Delete(&models.Event{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Event deleted successfully"})
+}
+
+
+
+
+// 🟢 NEW — Update RSVP Status (Going, Maybe, Not Going)
+func UpdateRSVP(c *gin.Context) {
+	invID := c.Param("id")
+
+	var body struct {
+		Status string `json:"status"`
+	}
+
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	allowed := map[string]bool{
+		"going":     true,
+		"maybe":     true,
+		"not_going": true,
+	}
+
+	if !allowed[body.Status] {
+		c.JSON(400, gin.H{"error": "Invalid status"})
+		return
+	}
+
+	var invitation models.Invitation
+	if err := database.DB.First(&invitation, invID).Error; err != nil {
+		c.JSON(404, gin.H{"error": "Invitation not found"})
+		return
+	}
+
+	invitation.Status = body.Status
+	database.DB.Save(&invitation)
+
+	c.JSON(200, gin.H{"message": "RSVP updated", "invitation": invitation})
+}
+
+
+
+// 🟢 NEW — Get attendee list + statuses for an event
+func GetEventAttendees(c *gin.Context) {
+	eventID := c.Param("id")
+
+	var attendees []models.Invitation
+	if err := database.DB.Preload("User").Where("event_id = ?", eventID).Find(&attendees).Error; err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, attendees)
+}
+
+
+
+
+// 🟢 NEW — Search + filter events
+func SearchEvents(c *gin.Context) {
+	keyword := c.Query("keyword")
+	date := c.Query("date")
+	role := c.Query("role") // organizer or attendee
+	userID := c.Query("userId")
+
+	var events []models.Event
+
+	query := database.DB.Model(&models.Event{})
+
+	// Keyword search (name or description)
+	if keyword != "" {
+		query = query.Where("name LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// Filter by date YYYY-MM-DD
+	if date != "" {
+		query = query.Where("DATE(date) = ?", date)
+	}
+
+	// Filter by role
+	if role != "" && userID != "" {
+		if role == "organizer" {
+			query = query.Where("organizer_id = ?", userID)
+		} else {
+			var invites []models.Invitation
+			database.DB.Where("user_id = ?", userID).Find(&invites)
+
+			var ids []uint
+			for _, i := range invites {
+				ids = append(ids, i.EventID)
+			}
+			if len(ids) > 0 {
+				query = query.Where("id IN ?", ids)
+			}
+		}
+	}
+
+	query.Find(&events)
+	c.JSON(200, events)
 }

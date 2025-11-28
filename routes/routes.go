@@ -13,6 +13,15 @@ func RegisterRoutes(router *gin.Engine) {
 	router.GET("/events/invited/:userId", controllers.GetInvitedEvents)
 	router.DELETE("/events/:id", controllers.DeleteEvent)
 
+	// 🔵 RSVP (Update status)
+	router.PUT("/rsvp/:id", controllers.UpdateRSVP)
+
+	// 🔵 Get attendee list w/ statuses
+	router.GET("/events/:id/attendees", controllers.GetEventAttendees)
+
+	// 🔵 Search events
+	router.GET("/search/events", controllers.SearchEvents)
+
 	// Invitation route
 	router.POST("/invite", controllers.InviteUser)
 }

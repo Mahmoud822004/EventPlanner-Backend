@@ -20,4 +20,7 @@ type Invitation struct {
 	EventID uint   `json:"event_id"`
 	UserID  uint   `json:"user_id"`
 	Role    string `json:"role"` // "organizer" or "attendee"
+	Status  string `json:"status"` // going, maybe, not_going
+
+	User User `gorm:"foreignKey:UserID" json:"user"`
 }
