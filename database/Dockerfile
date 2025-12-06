@@ -1,0 +1,8 @@
+FROM mysql:8.0
+
+ENV MYSQL_ROOT_PASSWORD=rootpass
+ENV MYSQL_DATABASE=eventplanner
+ENV MYSQL_USER=appuser
+ENV MYSQL_PASSWORD=apppass
+
+EXPOSE 3306
