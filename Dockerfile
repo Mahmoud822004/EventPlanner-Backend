@@ -12,8 +12,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build binary
-RUN go build -o main .
+# Build binary with memory optimizations
+# -p 1 limits parallel compilation to reduce memory usage
+RUN go build -p 1 -ldflags="-s -w" -o main .
 
 # ---- Run Stage ----
 FROM alpine:3.19
