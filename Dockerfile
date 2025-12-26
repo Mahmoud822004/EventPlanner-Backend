@@ -1,12 +1,18 @@
 FROM alpine:3.19
 WORKDIR /app
 
-# Create a non-root user for OpenShift
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-
-# Copy the pre-built binary
+# Copy the pre-built binary first (as root)
 COPY main .
+
+# Make it executable
+RUN chmod +x main
+
+# Create a non-root user for OpenShift
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose backend port
 EXPOSE 8080
